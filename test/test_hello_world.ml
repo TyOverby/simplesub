@@ -12,19 +12,19 @@ let run_type_test s =
 ;;
 
 let%expect_test _ = 
-  run_type_test {| (int_lit 5) |};
+  run_type_test {| 5 |};
 [%expect {| (PrimitiveType int) |}]
 
 let%expect_test _ = 
-  run_type_test {| (lam (name a) (body (var a))) |};
+  run_type_test {| (lam a a) |};
 [%expect {| (FunctionType (param (Type_variable 0)) (body (Type_variable 0))) |}]
 
 let%expect_test _ = 
-  run_type_test {| (rcd (fields ((a (int_lit 5)) (b (int_lit 10))))) |};
+  run_type_test {| (record (a 5) (b 10)) |};
 [%expect {| (RecordType (fields ((a (PrimitiveType int)) (b (PrimitiveType int))))) |}]
 
 let%expect_test _ = 
-  run_type_test {| (rcd (fields ((a (lam (name a) (body (var a)))) (b (int_lit 10))))) |};
+  run_type_test {| (record (a (lam a a)) (b 10)) |};
 [%expect {|
   (RecordType
    (fields
@@ -32,7 +32,7 @@ let%expect_test _ =
      (b (PrimitiveType int))))) |}]
 
 let%expect_test _ = 
-  run_type_test {| (lam (name a) (body (app (lhs (sel (rcv (var a)) (field a))) (rhs (sel (rcv (var a)) (field b)))))) |};
+  run_type_test {| (lam a ((. a a) (. a b))) |};
   (* 'b ^ { a : 'e ^ ('d -> 'c) } ^ { b : 'd} -> 'c *)
   (* { a : ('d -> 'c) } ^ { b : 'd } -> 'c *)
   (* { a : ('d -> 'c);  b : 'd } -> 'c *)
@@ -53,7 +53,7 @@ let%expect_test _ =
    (body (Type_variable 3))) |}]
 
 let%expect_test _ = 
-  run_type_test {| (lam (name f) (body (app (lhs (var f)) (rhs (var f))))) |};
+  run_type_test {| (lam f (f f)) |};
   (* ('b ^ ('b -> 'r)) -> 'r *)
   [%expect {|
     (FunctionType
@@ -63,17 +63,22 @@ let%expect_test _ =
      (body (Type_variable 7))) |}]
 
 let%expect_test _ = 
-  run_type_test {| (lam (name f) (body (app (lhs (sel (field g) (rcv (var f)))) (rhs (var f))))) |};
+  run_type_test {| ((lam f (f f)) (lam a a)) |};
+  [%expect {| (Type_variable 8) |}]
+
+let%expect_test _ = 
+  run_type_test {| (lam f ((. f g) f)) |};
   (* ('b ^ {g : 'b -> 'r)} -> 'r *)
   [%expect {|
     (FunctionType
      (param
-      (Inter (lhs (Type_variable 8))
+      (Inter (lhs (Type_variable 12))
        (rhs
         (RecordType
          (fields
           ((g
-            (Inter (lhs (Type_variable 10))
+            (Inter (lhs (Type_variable 14))
              (rhs
-              (FunctionType (param (Type_variable 8)) (body (Type_variable 9))))))))))))
-     (body (Type_variable 9))) |}]
+              (FunctionType (param (Type_variable 12)) (body (Type_variable 13))))))))))))
+     (body (Type_variable 13))) |}]
+

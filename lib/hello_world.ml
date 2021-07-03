@@ -3,6 +3,7 @@ open! Base
 module Term = struct
   type t =
     | Int_lit of int
+    | Bool_lit of bool
     | Var of string
     | Lam of
         { name : string
@@ -23,7 +24,36 @@ module Term = struct
         ; rhs : t
         ; body : t
         }
-      [@@deriving sexp]
+  [@@deriving sexp]
+
+  let is_int s =
+    match Int.of_string s with
+    | _ -> true
+    | exception _ -> false
+  ;;
+
+  let rec t_of_sexp : Sexp.t -> t = function
+    | Atom s when is_int s -> Int_lit (Int.of_string s)
+    | Atom "true" -> Bool_lit true
+    | Atom "false" -> Bool_lit false
+    | Atom o -> Var o
+    | List [ Atom "lam"; Atom name; body ] ->
+      Lam { name; body = t_of_sexp body }
+    | List [ Atom "let"; Atom "rec"; Atom name ; rhs ; body] -> 
+      Let {is_rec=true; name; rhs = t_of_sexp rhs; body = t_of_sexp body}
+    | List [ Atom "let"; Atom name ; rhs ; body] -> 
+      Let {is_rec=false; name; rhs = t_of_sexp rhs; body = t_of_sexp body}
+    | List (Atom "record" :: fields) -> 
+      Rcd {fields = fields |> List.map ~f:(function
+        List [Atom name; value] -> (name, t_of_sexp value)
+        | f -> raise_s [%message (f: Sexp.t) "is not a field pair"]
+      )}
+    | List [Atom "."; receiver; Atom field ] -> 
+      Sel {rcv = t_of_sexp receiver; field}
+    | List [a; b] -> App {lhs = t_of_sexp a; rhs = t_of_sexp b}
+    | other -> raise_s [%message (other: Sexp.t) "is not an expression"]
+
+  ;;
 end
 
 module Simple_type = struct
@@ -48,7 +78,6 @@ module Ctx = struct
   type t = Simple_type.t Base.Map.M(String).t
 
   let add = Map.add_exn
-
   let empty = Map.empty (module String)
 
   let find_or_err t k ~msg =
@@ -89,6 +118,7 @@ let fresh () = Simple_type.Variable (fresh_state ())
 let rec type_term (term : Term.t) ~(ctx : Ctx.t) : Simple_type.t =
   match term with
   | Int_lit _ -> Primitive "int"
+  | Bool_lit _ -> Primitive "bool"
   | Var name -> Ctx.find_or_err ctx name ~msg:("not found " ^ name)
   | Rcd { fields } ->
     let fields =
@@ -189,7 +219,7 @@ module Type = struct
         }
     | Type_variable of int
     | PrimitiveType of string
-    [@@deriving sexp]
+  [@@deriving sexp]
 
   type polar = Simple_type.state * bool
 
