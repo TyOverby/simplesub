@@ -4,7 +4,7 @@ USER root
 RUN sed -i 's-/home/opam:/sbin/nologin-/home/opam:/bin/bash-' /etc/passwd
 USER opam
 
-RUN opam install dune base merlin ocamlformat ppx_jane ocaml-lsp-server
+RUN opam install dune base parsexp merlin ocamlformat ppx_jane ocaml-lsp-server
 RUN sudo apk add git openssh neovim
 RUN mkdir -p ~/.cache/nvim
 

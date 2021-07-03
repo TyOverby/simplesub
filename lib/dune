@@ -1,4 +1,5 @@
 (library
  (name hello_world)
  (libraries base)
- (preprocess (pps ppx_jane)))
+ (preprocess
+  (pps ppx_jane)))
